@@ -70,7 +70,7 @@ def call_gemini(prompt: str) -> str:
     if not client:
         raise ValueError("GEMINI_API_KEY is not configured.")
     res = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-3.6-flash",
         contents=prompt,
         config=types.GenerateContentConfig(temperature=0.2)
     )
