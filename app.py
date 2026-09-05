@@ -66,17 +66,44 @@ def parse_json_safely(text: str) -> dict:
             return json.loads(match.group())
         raise ValueError("Failed to parse valid JSON from Gemini output.")
 
+
+
+def extract_pdf_text(fiimport time
+
 def call_gemini(prompt: str) -> str:
     if not client:
         raise ValueError("GEMINI_API_KEY is not configured.")
-    res = client.models.generate_content(
-        model="gemini-3.6-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(temperature=0.2)
-    )
-    return res.text
+    
+    # Priority list of models to try if high demand occurs
+    models_to_try = [
+        "gemini-3.6-flash",
+        "gemini-2.5-flash",
+        "gemini-1.5-flash"
+    ]
+    
+    last_error = None
 
-def extract_pdf_text(file_bytes: bytes) -> str:
+    for model_name in models_to_try:
+        # Try each model up to 2 times
+        for attempt in range(2):
+            try:
+                res = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(temperature=0.2)
+                )
+                return res.text
+            except Exception as e:
+                last_error = e
+                # If hit with 503 high demand, wait 1.5 seconds and retry/switch
+                if "503" in str(e) or "UNAVAILABLE" in str(e):
+                    time.sleep(1.5)
+                    continue
+                else:
+                    # Break to try next model if it's another type of error
+                    break
+                    
+    raise Exception(f"All model attempts failed. Last error: {str(last_error)}")le_bytes: bytes) -> str:
     reader = PdfReader(io.BytesIO(file_bytes))
     return "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
 
