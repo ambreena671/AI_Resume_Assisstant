@@ -70,7 +70,7 @@ def call_gemini(prompt: str) -> str:
     if not client:
         raise ValueError("GEMINI_API_KEY is not configured.")
     res = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-2.0-flash",
         contents=prompt,
         config=types.GenerateContentConfig(temperature=0.2)
     )
@@ -193,15 +193,16 @@ elif nav == "📊 Resume Analysis":
     st.title("📊 AI Resume Analysis")
     if st.button("Analyze with Gemini"):
         if client:
-            prompt = f"Analyze this resume against job description.\nResume: {st.session_state.resume_data}\nJob: {st.session_state.job_description}\nReturn JSON with keys: overall_score, strengths, weaknesses"
-            raw = call_gemini(prompt)
-            st.session_state.resume_analysis = parse_json_safely(raw)
-    
-    if st.session_state.resume_analysis:
-        ra = st.session_state.resume_analysis
-        st.metric("Overall Score", f"{ra.get('overall_score', 0)}/100")
-        st.write("**Strengths:**", ra.get("strengths", []))
-        st.write("**Weaknesses:**", ra.get("weaknesses", []))
+            with st.spinner("Analyzing resume..."):
+                try:
+                    prompt = f"Analyze this resume against job description.\nResume: {st.session_state.resume_data}\nJob: {st.session_state.job_description}\nReturn JSON with keys: overall_score, strengths, weaknesses"
+                    raw = call_gemini(prompt)
+                    st.session_state.resume_analysis = parse_json_safely(raw)
+                    st.success("Analysis complete!")
+                except Exception as e:
+                    st.error(f"⚠️ API Error: {str(e)}")
+        else:
+            st.error("API Key missing. Please check Secrets in Streamlit Cloud.")
 
 elif nav == "🎨 Resume Template":
     st.title("🎨 Select Template")
