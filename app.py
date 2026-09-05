@@ -2,6 +2,7 @@ import os
 import io
 import re
 import json
+import time
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -53,7 +54,7 @@ if not api_key and "GEMINI_API_KEY" in st.secrets:
 client = genai.Client(api_key=api_key) if api_key else None
 
 # ==========================================
-# 2. HELPER FUNCTIONS
+# 2. HELPER FUNCTIONS & GEMINI INTEGRATION
 # ==========================================
 def parse_json_safely(text: str) -> dict:
     try:
@@ -66,25 +67,18 @@ def parse_json_safely(text: str) -> dict:
             return json.loads(match.group())
         raise ValueError("Failed to parse valid JSON from Gemini output.")
 
-
-
-def extract_pdf_text(fiimport time
-
 def call_gemini(prompt: str) -> str:
     if not client:
         raise ValueError("GEMINI_API_KEY is not configured.")
     
-    # Priority list of models to try if high demand occurs
+    # Priority list of models to fall back on in case of deprecation or high demand
     models_to_try = [
-        "gemini-3.6-flash",
         "gemini-2.5-flash",
         "gemini-1.5-flash"
     ]
     
     last_error = None
-
     for model_name in models_to_try:
-        # Try each model up to 2 times
         for attempt in range(2):
             try:
                 res = client.models.generate_content(
@@ -95,15 +89,15 @@ def call_gemini(prompt: str) -> str:
                 return res.text
             except Exception as e:
                 last_error = e
-                # If hit with 503 high demand, wait 1.5 seconds and retry/switch
+                # Retry if service is temporarily unavailable
                 if "503" in str(e) or "UNAVAILABLE" in str(e):
                     time.sleep(1.5)
                     continue
-                else:
-                    # Break to try next model if it's another type of error
-                    break
+                break
                     
-    raise Exception(f"All model attempts failed. Last error: {str(last_error)}")le_bytes: bytes) -> str:
+    raise Exception(f"All model attempts failed. Last error: {str(last_error)}")
+
+def extract_pdf_text(file_bytes: bytes) -> str:
     reader = PdfReader(io.BytesIO(file_bytes))
     return "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
 
@@ -166,7 +160,7 @@ nav = st.sidebar.radio("Navigation", [
 ])
 
 if not client:
-    st.sidebar.warning("⚠️ GEMINI_API_KEY missing. Add it to .env or Streamlit Secrets.")
+    st.sidebar.warning("⚠️ GEMINI_API_KEY missing. Add it to Streamlit Secrets or .env.")
 
 # ==========================================
 # 4. PAGE CONTROLLERS
@@ -176,8 +170,8 @@ if nav == "🏠 Home":
     st.subheader("Create a Resume That Gets Noticed")
     st.write("Use AI to create, analyze, improve, and optimize your resume for your target job.")
     c1, c2 = st.columns(2)
-    with c1: st.info("**🤖 AI Analysis:** Get feedback on your resume.")
-    with c2: st.info("**🎯 Job Match:** Compare against job requirements.")
+    with c1: st.info("**🤖 AI Analysis:** Get instant feedback on your resume strengths and weaknesses.")
+    with c2: st.info("**🎯 Job Match:** Tailor your experience to pass ATS screeners.")
 
 elif nav == "📝 Resume Builder":
     st.title("📝 Resume Builder")
@@ -191,7 +185,7 @@ elif nav == "📝 Resume Builder":
         p["location"] = c1.text_input("Location", p.get("location"))
 
     with st.expander("📑 Summary", expanded=True):
-        st.session_state.resume_data["summary"] = st.text_area("Summary", st.session_state.resume_data.get("summary"))
+        st.session_state.resume_data["summary"] = st.text_area("Professional Summary", st.session_state.resume_data.get("summary"))
 
     with st.expander("💼 Experience"):
         if st.button("➕ Add Job"):
@@ -199,30 +193,30 @@ elif nav == "📝 Resume Builder":
             st.rerun()
         for idx, exp in enumerate(st.session_state.resume_data["experience"]):
             c1, c2 = st.columns(2)
-            exp["title"] = c1.text_input(f"Title #{idx+1}", exp.get("title"))
+            exp["title"] = c1.text_input(f"Job Title #{idx+1}", exp.get("title"))
             exp["company"] = c2.text_input(f"Company #{idx+1}", exp.get("company"))
-            exp["description"] = st.text_area(f"Description #{idx+1}", exp.get("description"))
+            exp["description"] = st.text_area(f"Description / Accomplishments #{idx+1}", exp.get("description"))
 
 elif nav == "📤 Upload Resume":
     st.title("📤 Upload Resume")
-    uploaded_file = st.file_uploader("Upload PDF/DOCX", type=["pdf", "docx"])
-    if uploaded_file and st.button("Parse Document"):
+    uploaded_file = st.file_uploader("Upload existing PDF or DOCX", type=["pdf", "docx"])
+    if uploaded_file and st.button("Extract Text"):
         bytes_data = uploaded_file.read()
         raw_text = extract_pdf_text(bytes_data) if uploaded_file.name.endswith(".pdf") else extract_docx_text(bytes_data)
         st.session_state.resume_data["summary"] = raw_text[:500]
-        st.success("Resume text extracted to Summary!")
+        st.success("Extracted text populated into Summary!")
 
 elif nav == "🎯 Target Job":
     st.title("🎯 Target Job Description")
-    st.session_state.job_description = st.text_area("Paste Job Description:", st.session_state.job_description, height=200)
+    st.session_state.job_description = st.text_area("Paste target job posting here:", st.session_state.job_description, height=200)
 
 elif nav == "📊 Resume Analysis":
     st.title("📊 AI Resume Analysis")
     if st.button("Analyze with Gemini"):
         if client:
-            with st.spinner("Analyzing resume..."):
+            with st.spinner("Analyzing resume against job requirements..."):
                 try:
-                    prompt = f"Analyze this resume against job description.\nResume: {st.session_state.resume_data}\nJob: {st.session_state.job_description}\nReturn JSON with keys: overall_score, strengths, weaknesses"
+                    prompt = f"Analyze this resume against the target job description.\nResume: {st.session_state.resume_data}\nJob: {st.session_state.job_description}\nReturn JSON with keys: overall_score, strengths, weaknesses"
                     raw = call_gemini(prompt)
                     st.session_state.resume_analysis = parse_json_safely(raw)
                     st.success("Analysis complete!")
@@ -230,9 +224,15 @@ elif nav == "📊 Resume Analysis":
                     st.error(f"⚠️ API Error: {str(e)}")
         else:
             st.error("API Key missing. Please check Secrets in Streamlit Cloud.")
+    
+    if st.session_state.resume_analysis:
+        ra = st.session_state.resume_analysis
+        st.metric("Overall Match Score", f"{ra.get('overall_score', 0)}/100")
+        st.write("**Strengths:**", ra.get("strengths", []))
+        st.write("**Weaknesses / Missing Keywords:**", ra.get("weaknesses", []))
 
 elif nav == "🎨 Resume Template":
-    st.title("🎨 Select Template")
+    st.title("🎨 Select Resume Template")
     st.session_state.selected_template = st.radio("Choose Style", ["Modern", "Classic", "Technical"])
 
 elif nav == "👁 Resume Preview":
@@ -244,7 +244,7 @@ elif nav == "📄 Download PDF":
     if st.button("Generate PDF"):
         pdf_bytes = generate_pdf(st.session_state.resume_data, st.session_state.selected_template)
         st.session_state.generated_pdf = pdf_bytes
-        st.success("PDF Ready!")
+        st.success("PDF generated successfully!")
 
     if st.session_state.generated_pdf:
         st.download_button("📄 Download Resume.pdf", st.session_state.generated_pdf, "Resume.pdf", "application/pdf")
