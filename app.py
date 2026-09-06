@@ -73,8 +73,8 @@ def call_gemini(prompt: str) -> str:
     
     # Priority list of models to fall back on in case of deprecation or high demand
     models_to_try = [
-        "gemini-3.8-flash",
-        "gemini-3.7-flash"
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite"
     ]
     
     last_error = None
