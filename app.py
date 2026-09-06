@@ -67,8 +67,8 @@ def call_gemini(prompt: str) -> str:
         raise ValueError("GEMINI_API_KEY is not configured.")
     
     models_to_try = [
-        "gemini-2.5-flash",
-        "gemini-1.5-flash"
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite"
     ]
     
     last_error = None
