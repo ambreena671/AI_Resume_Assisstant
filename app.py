@@ -100,18 +100,19 @@ def extract_docx_text(file_bytes: bytes) -> str:
 
 def parse_resume_with_ai(raw_text: str) -> dict:
     """Parses raw text from PDF/DOCX into structured JSON."""
+    # Doubled curly braces {{ }} tell Python to treat them as literal JSON braces
     prompt = f"""
     You are an expert resume parser. Convert the raw resume text into a clean, structured JSON format.
     Schema required:
-    {{
-        "personal": {{"full_name": "", "title": "", "email": "", "phone": "", "location": "", "linkedin": "", "github": ""}},
+    {{{{
+        "personal": {{{{ "full_name": "", "title": "", "email": "", "phone": "", "location": "", "linkedin": "", "github": "" }}}},
         "summary": "",
-        "experience": [{"title": "", "company": "", "start": "", "end": "", "description": ""}],
-        "skills": {{"technical": "", "programming": "", "frameworks": "", "soft": ""}},
-        "education": [{"degree": "", "institution": "", "year": ""}]
-    }}
+        "experience": [{{ "title": "", "company": "", "start": "", "end": "", "description": "" }}],
+        "skills": {{{{ "technical": "", "programming": "", "frameworks": "", "soft": "" }}}},
+        "education": [{{ "degree": "", "institution": "", "year": "" }}]
+    }}}}
 
-    Raw Resume:
+    Raw Resume Text:
     {raw_text}
 
     Return ONLY valid JSON.
@@ -119,7 +120,7 @@ def parse_resume_with_ai(raw_text: str) -> dict:
     raw_response = call_gemini(prompt)
     return parse_json_safely(raw_response)
 
-def rewrite_complete_resume_with_ai(current_resume: dict, job_description: str) -> dict:
+ def rewrite_complete_resume_with_ai(current_resume: dict, job_description: str) -> dict:
     """Completely rewrites and optimizes every section of the resume."""
     prompt = f"""
     You are an elite executive resume writer and ATS optimization specialist.
@@ -139,16 +140,18 @@ def rewrite_complete_resume_with_ai(current_resume: dict, job_description: str) 
     {job_description if job_description else "Optimize for general industry best practices and ATS compliance."}
 
     Return ONLY a single valid JSON matching the exact input structure:
-    {{
-        "personal": {{"full_name": "", "title": "", "email": "", "phone": "", "location": "", "linkedin": "", "github": ""}},
+    {{{{
+        "personal": {{{{ "full_name": "", "title": "", "email": "", "phone": "", "location": "", "linkedin": "", "github": "" }}}},
         "summary": "",
-        "experience": [{"title": "", "company": "", "start": "", "end": "", "description": ""}],
-        "skills": {{"technical": "", "programming": "", "frameworks": "", "soft": ""}},
-        "education": [{"degree": "", "institution": "", "year": ""}]
-    }}
+        "experience": [{{ "title": "", "company": "", "start": "", "end": "", "description": "" }}],
+        "skills": {{{{ "technical": "", "programming": "", "frameworks": "", "soft": "" }}}},
+        "education": [{{ "degree": "", "institution": "", "year": "" }}]
+    }}}}
     """
     raw_response = call_gemini(prompt)
     return parse_json_safely(raw_response)
+
+
 
 def generate_pdf(data: dict, template_name: str) -> bytes:
     """Generates an ATS-compliant PDF using ReportLab."""
